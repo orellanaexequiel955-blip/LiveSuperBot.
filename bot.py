@@ -1,4 +1,3 @@
-
 import os
 import logging
 import requests
@@ -7,25 +6,22 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 logging.basicConfig(level=logging.INFO)
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
-
-HEADERS = {"x-apisports-key": API_FOOTBALL_KEY}
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+API_KEY = os.getenv("API_FOOTBALL_KEY")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⚽🏀 ¡Bienvenido a LiveSuperBot!\n\n"
-        "Comandos disponibles:\n"
-        "/futbol - Partidos de fútbol en vivo\n"
-        "/nba - Próximamente: NBA\n"
-        "/live - Partidos en directo"
+        "/futbol - Partidos en vivo\n"
+        "/live - Partidos en directo\n"
+        "/nba - Sección NBA"
     )
 
 async def futbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         response = requests.get(
             "https://v3.football.api-sports.io/fixtures",
-            headers=HEADERS,
+            headers={"x-apisports-key": API_KEY},
             params={"live": "all"},
             timeout=20
         )
@@ -33,46 +29,36 @@ async def futbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
         partidos = response.json().get("response", [])
 
         if not partidos:
-            await update.message.reply_text("⚽ No hay partidos en vivo en este momento.")
+            await update.message.reply_text("⚽ No hay partidos en vivo.")
             return
 
-        for partido in partidos[:10]:
-            local = partido["teams"]["home"]["name"]
-            visitante = partido["teams"]["away"]["name"]
-            goles_local = partido["goals"]["home"]
-            goles_visitante = partido["goals"]["away"]
-            minuto = partido["fixture"]["status"]["elapsed"]
+        for p in partidos[:10]:
+            home = p["teams"]["home"]["name"]
+            away = p["teams"]["away"]["name"]
+            goals = p["goals"]
+            minute = p["fixture"]["status"]["elapsed"]
 
             await update.message.reply_text(
-                f"⚽ {local} {goles_local}-{goles_visitante} {visitante}\n"
-                f"⏱️ Minuto: {minuto or 'Sin dato'}"
+                f"⚽ {home} {goals['home']}-{goals['away']} {away}\n"
+                f"⏱️ Minuto: {minute or 'Sin dato'}"
             )
-
     except Exception:
-        logging.exception("Error consultando API-Football")
-        await update.message.reply_text("No pude consultar los partidos. Revisá la API.")
+        logging.exception("Error consultando API")
+        await update.message.reply_text("Error consultando los partidos.")
 
 async def nba(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🏀 La sección NBA estará disponible en la próxima actualización."
-    )
+    await update.message.reply_text("🏀 La sección NBA estará disponible próximamente.")
 
-async def main():
-    if not TELEGRAM_TOKEN or not API_FOOTBALL_KEY:
-        raise RuntimeError("Faltan las variables TELEGRAM_TOKEN o API_FOOTBALL_KEY")
+def main():
+    if not TOKEN or not API_KEY:
+        raise RuntimeError("Faltan variables de entorno.")
 
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("futbol", futbol))
     app.add_handler(CommandHandler("live", futbol))
     app.add_handler(CommandHandler("nba", nba))
-
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await app.updater.idle()
+    app.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-          
+    main()
